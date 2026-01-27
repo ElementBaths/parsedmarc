@@ -1,0 +1,40 @@
+# Sensitive credentials and tokens
+credentials.json
+token.pickle
+*.pickle
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv
+
+# Generated output files
+dmarc_reports/
+*.json
+*.csv
+!requirements.txt
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+*.log
