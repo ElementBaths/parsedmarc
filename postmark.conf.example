@@ -1,0 +1,11 @@
+# Postmark API Configuration
+# Copy this file to postmark.conf and fill in your credentials
+
+# Postmark Server API Token
+POSTMARK_API_TOKEN=your_postmark_api_token_here
+
+# Email address to send notifications from (must be verified in Postmark)
+POSTMARK_FROM_EMAIL=noreply@yourdomain.com
+
+# Email address to send failure notifications to
+POSTMARK_TO_EMAIL=admin@yourdomain.com

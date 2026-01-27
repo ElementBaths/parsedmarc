@@ -1,86 +1,61 @@
 # OpenSearch/OpenSearch Dashboards Setup for parsedmarc
 
-This guide explains how to set up OpenSearch and OpenSearch Dashboards using Docker to visualize your parsedmarc DMARC reports.
+This guide explains how to visualize your parsedmarc DMARC reports using OpenSearch and OpenSearch Dashboards.
+
+## Overview
+
+parsedmarc has built-in OpenSearch support. When configured with an `[opensearch]` section in `parsedmarc.ini`, it automatically imports DMARC reports directly into OpenSearch during processing.
 
 ## Prerequisites
 
-- Docker and Docker Compose installed on your system
-- Python 3.6+ with `opensearch-py` package installed
-- Existing parsedmarc JSON files in `dmarc_reports/` directory
+- OpenSearch instance (standalone or Docker)
+- OpenSearch Dashboards for visualization (optional)
+- parsedmarc configured with OpenSearch settings
 
-## Installation
+## Configuration
 
-### 1. Install Python Dependencies
+### parsedmarc.ini OpenSearch Settings
 
-Create a virtual environment and install the required Python package:
+Add the `[opensearch]` section to your `parsedmarc.ini`:
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+```ini
+[opensearch]
+hosts = http://localhost:9200
+ssl = False
+index_prefix = dmarc
 ```
 
-Or install directly:
+For HTTPS connections with authentication:
 
-```bash
-python3 -m venv venv
-source venv/bin/activate
-pip install opensearch-py
+```ini
+[opensearch]
+hosts = https://username:password@opensearch.example.com:9200
+ssl = True
+index_prefix = dmarc
 ```
 
-**Note**: Always activate the virtual environment before running the import script:
-```bash
-source venv/bin/activate
-```
+### Configuration Options
 
-### 2. Start OpenSearch and OpenSearch Dashboards
+| Option | Description | Default |
+|--------|-------------|---------|
+| `hosts` | OpenSearch URL (include `http://` or `https://`) | Required |
+| `ssl` | Enable SSL/TLS | `False` |
+| `index_prefix` | Prefix for index names | `dmarc` |
 
-Start the Docker containers:
+## How It Works
 
-```bash
-docker-compose up -d
-```
+When parsedmarc runs with OpenSearch configured:
 
-This will start:
-- **OpenSearch** on port 9200
-- **OpenSearch Dashboards** on port 5601
+1. Fetches DMARC reports from your email source (Gmail, IMAP, etc.)
+2. Parses the aggregate and forensic reports
+3. Saves to JSON/CSV files locally (if configured)
+4. Imports data directly into OpenSearch
 
-Wait for the services to be healthy (about 1-2 minutes). You can check the status with:
+Data is stored in daily indices for easy retention management:
+- `dmarc_aggregate-YYYY.MM.DD` - Aggregate reports
+- `dmarc_forensic-YYYY.MM.DD` - Forensic reports
 
-```bash
-docker-compose ps
-```
-
-Verify OpenSearch is running:
-
-```bash
-curl http://localhost:9200
-```
-
-### 3. Import Existing Data
-
-Make sure your virtual environment is activated, then import your existing parsedmarc JSON files into OpenSearch:
-
-```bash
-source venv/bin/activate
-python3 import_to_opensearch.py
-```
-
-The script will:
-- Connect to OpenSearch
-- Create appropriate index mappings
-- Import aggregate reports from `dmarc_reports/aggregate.json`
-- Import forensic reports from `dmarc_reports/forensic.json`
-
-You can customize the import with command-line options:
-
-```bash
-python3 import_to_opensearch.py --host localhost --port 9200 \
-  --aggregate-file ./dmarc_reports/aggregate.json \
-  --forensic-file ./dmarc_reports/forensic.json
-```
-
-## Configuring OpenSearch Dashboards
+## Setting Up OpenSearch Dashboards
 
 ### 1. Access OpenSearch Dashboards
 
@@ -94,14 +69,14 @@ http://localhost:5601
 
 OpenSearch Dashboards needs index patterns to visualize your data:
 
-1. Go to **Stack Management** → **Index Patterns** (or click "Create index pattern")
+1. Go to **Stack Management** → **Index Patterns**
 2. Create index pattern for aggregate reports:
-   - Pattern: `dmarc-aggregate-*`
-   - Time field: `@timestamp`
+   - Pattern: `dmarc_aggregate-*`
+   - Time field: `date_begin`
    - Click "Create index pattern"
 3. Create index pattern for forensic reports:
-   - Pattern: `dmarc-forensic-*`
-   - Time field: `@timestamp`
+   - Pattern: `dmarc_forensic-*`
+   - Time field: `arrival_date`
    - Click "Create index pattern"
 
 ### 3. Explore Your Data
@@ -112,24 +87,6 @@ Navigate to **Discover** to explore your imported DMARC data. You can:
 - View time-based trends
 - Search and analyze specific records
 
-## Future Reports
-
-With the OpenSearch configuration added to `parsedmarc.ini`, future parsedmarc runs will automatically send data to OpenSearch:
-
-```ini
-[opensearch]
-hosts = localhost:9200
-save_aggregate = True
-save_forensic = True
-index_prefix = dmarc
-ssl_enabled = False
-```
-
-When you run parsedmarc (e.g., `parsedmarc -c parsedmarc.ini`), it will:
-- Continue saving JSON/CSV files locally
-- Also send data directly to OpenSearch
-- Create indices automatically with date-based naming
-
 ## Creating Dashboards
 
 ### Sample Visualizations
@@ -138,13 +95,13 @@ Here are some useful visualizations you can create in OpenSearch Dashboards:
 
 1. **Email Volume Over Time**
    - Visualization type: Line chart
-   - X-axis: `@timestamp` (Date Histogram)
-   - Y-axis: Count
+   - X-axis: `date_begin` (Date Histogram)
+   - Y-axis: Sum of `message_count`
 
 2. **Top Source IPs**
    - Visualization type: Data table
-   - Metric: Count
-   - Buckets: Terms aggregation on `source_ip`
+   - Metric: Sum of `message_count`
+   - Buckets: Terms aggregation on `source_ip_address`
 
 3. **Disposition Breakdown**
    - Visualization type: Pie chart
@@ -153,11 +110,16 @@ Here are some useful visualizations you can create in OpenSearch Dashboards:
 4. **SPF/DKIM Alignment Status**
    - Visualization type: Vertical bar chart
    - X-axis: Terms aggregation on `spf_aligned` or `dkim_aligned`
-   - Y-axis: Count
+   - Y-axis: Sum of `message_count`
 
 5. **Geographic Distribution**
    - Visualization type: Coordinate map
    - Geo field: `source_country`
+
+6. **Failing Domains**
+   - Visualization type: Data table
+   - Filter: `passed_dmarc: false`
+   - Buckets: Terms on `header_from`
 
 ### Saving Dashboards
 
@@ -168,89 +130,87 @@ Here are some useful visualizations you can create in OpenSearch Dashboards:
 5. Arrange and resize as needed
 6. Save the dashboard
 
+## Index Structure
+
+### Aggregate Reports Index: `dmarc_aggregate-*`
+
+Key fields stored by parsedmarc:
+
+- `xml_schema`: DMARC XML schema version
+- `org_name`, `org_email`: Reporting organization
+- `report_id`: Unique report identifier
+- `date_begin`, `date_end`: Report period
+- `domain`: Protected domain (policy published)
+- `source_ip_address`: Source IP
+- `source_country`: Country code (GeoIP)
+- `source_reverse_dns`: Reverse DNS
+- `source_base_domain`: Base domain of source
+- `message_count`: Number of messages
+- `disposition`: DMARC disposition (none, quarantine, reject)
+- `spf_aligned`, `dkim_aligned`: Alignment status (boolean)
+- `passed_dmarc`: Overall DMARC pass/fail
+- `header_from`, `envelope_from`: From addresses
+- `dkim_results`, `spf_results`: Detailed authentication results (nested)
+- `published_policy`: Full policy details (nested)
+
+### Forensic Reports Index: `dmarc_forensic-*`
+
+Key fields for forensic/failure reports:
+
+- `feedback_type`: Type of feedback
+- `arrival_date`: When the message arrived
+- `source_ip_address`: Source IP
+- `source_country`: Country code
+- `authentication_results`: Auth-Results header
+- `original_mail_from`: MAIL FROM address
+- `subject`: Email subject (if available)
+- Headers and body samples (when provided)
+
 ## Troubleshooting
 
-### OpenSearch Not Starting
+### Connection Errors
 
-If OpenSearch fails to start, check:
-
-```bash
-docker-compose logs opensearch
-```
-
-Common issues:
-- **Memory**: Ensure Docker has at least 2GB RAM allocated
-- **Port conflicts**: Make sure ports 9200 and 5601 are not in use
-- **Permissions**: On Linux, you may need to adjust `vm.max_map_count`:
-  ```bash
-  sudo sysctl -w vm.max_map_count=262144
-  ```
-
-### Import Script Errors
-
-If the import script fails:
+If parsedmarc can't connect to OpenSearch:
 
 1. Verify OpenSearch is running:
    ```bash
    curl http://localhost:9200
    ```
 
-2. Check the script output for specific error messages
+2. Check the `hosts` URL includes the protocol (`http://` or `https://`)
 
-3. Ensure JSON files exist and are valid:
-   ```bash
-   python3 -m json.tool dmarc_reports/aggregate.json > /dev/null
-   ```
+3. For SSL issues, ensure `ssl = False` for HTTP or `ssl = True` for HTTPS
 
-### OpenSearch Dashboards Can't Connect to OpenSearch
+4. Check firewall rules if OpenSearch is on a remote host
 
-If OpenSearch Dashboards shows connection errors:
+### Index Not Created
 
-1. Check that OpenSearch is healthy:
-   ```bash
-   docker-compose ps
-   ```
+If indices aren't being created:
 
-2. Verify network connectivity:
-   ```bash
-   docker-compose exec opensearch-dashboards curl http://opensearch:9200
-   ```
+1. Verify the `[opensearch]` section exists in `parsedmarc.ini`
+2. Check parsedmarc output for error messages
+3. Ensure OpenSearch has write permissions for the index prefix
 
-3. Restart both services:
-   ```bash
-   docker-compose restart
-   ```
+### Data Not Appearing
 
-## Stopping the Services
+If data imports but doesn't appear in Dashboards:
 
-To stop OpenSearch and OpenSearch Dashboards:
+1. Check the time range filter in Dashboards
+2. Verify index patterns match the actual index names
+3. Refresh the index pattern to pick up new fields
 
-```bash
-docker-compose down
-```
+## Data Retention
 
-To stop and remove all data (volumes):
+parsedmarc creates daily indices (`dmarc_aggregate-YYYY.MM.DD`) which makes it easy to:
+
+- Implement retention policies
+- Delete old data for GDPR compliance
+- Archive historical data
+
+To delete indices older than 90 days:
 
 ```bash
-docker-compose down -v
-```
-
-**Warning**: The `-v` flag will delete all indexed data. Use with caution.
-
-## Data Persistence
-
-Data is persisted in Docker volumes. To backup your OpenSearch data:
-
-```bash
-docker run --rm -v parsedmarc_opensearch_data:/data -v $(pwd):/backup \
-  alpine tar czf /backup/opensearch-backup.tar.gz -C /data .
-```
-
-To restore:
-
-```bash
-docker run --rm -v parsedmarc_opensearch_data:/data -v $(pwd):/backup \
-  alpine tar xzf /backup/opensearch-backup.tar.gz -C /data
+curl -X DELETE "localhost:9200/dmarc_aggregate-$(date -d '90 days ago' +%Y.%m.%d)"
 ```
 
 ## Additional Resources
@@ -258,35 +218,4 @@ docker run --rm -v parsedmarc_opensearch_data:/data -v $(pwd):/backup \
 - [OpenSearch Documentation](https://opensearch.org/docs/latest/)
 - [OpenSearch Dashboards Documentation](https://opensearch.org/docs/latest/dashboards/index/)
 - [parsedmarc Documentation](https://domainaware.github.io/parsedmarc/)
-
-## Index Structure
-
-### Aggregate Reports Index: `dmarc-aggregate-*`
-
-Each document represents a single record from an aggregate report:
-
-- `@timestamp`: Report begin date
-- `report_id`: Unique report identifier
-- `domain`: Protected domain
-- `source_ip`: Source IP address
-- `source_country`: Country code
-- `count`: Number of messages
-- `disposition`: DMARC disposition (none, quarantine, reject)
-- `spf_result`, `dkim_result`: Authentication results
-- `spf_aligned`, `dkim_aligned`, `dmarc_aligned`: Alignment status
-- `interval_begin`, `interval_end`: Time range for the record
-
-### Forensic Reports Index: `dmarc-forensic-*`
-
-Each document represents a single forensic report:
-
-- `@timestamp`: Arrival date
-- `report_id`: Unique report identifier
-- `domain`: Protected domain
-- `subject`: Email subject
-- `from`, `to`: Email addresses
-- `source_ip`: Source IP address
-- `disposition`: DMARC disposition
-- `arrival_date`: When the message arrived
-
-Both indices include a `_source_full` field containing the complete original report/record data for reference.
+- [parsedmarc OpenSearch Guide](https://domainaware.github.io/parsedmarc/opensearch.html)

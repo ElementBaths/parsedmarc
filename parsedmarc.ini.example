@@ -19,10 +19,7 @@ batch_size = 0
 
 [opensearch]
 hosts = localhost:9200
-save_aggregate = True
-save_forensic = True
+user = admin
+password = your_password_here
+ssl = True
 index_prefix = dmarc
-ssl_enabled = False
-ssl_verify = False
-username = 
-password = 

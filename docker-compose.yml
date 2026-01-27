@@ -1,50 +1,16 @@
 
 services:
-  opensearch:
-    image: opensearchproject/opensearch:2.11.0
-    container_name: parsedmarc-opensearch
-    environment:
-      - discovery.type=single-node
-      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
-      - plugins.security.disabled=true
-    ports:
-      - "9200:9200"
-      - "9600:9600"
+  parsedmarc-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: parsedmarc-processor
     volumes:
-      - opensearch_data:/usr/share/opensearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
-    networks:
-      - parsedmarc-network
-
-  opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.11.0
-    container_name: parsedmarc-opensearch-dashboards
-    environment:
-      - OPENSEARCH_HOSTS=http://opensearch:9200
-      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
-    ports:
-      - "5601:5601"
-    depends_on:
-      opensearch:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    networks:
-      - parsedmarc-network
-
-volumes:
-  opensearch_data:
-    driver: local
-
-networks:
-  parsedmarc-network:
-    driver: bridge
+      - ./logs:/logs
+      - ./credentials.json:/app/credentials.json:ro
+      - ./token.pickle:/app/token.pickle
+      - ./parsedmarc.ini:/app/parsedmarc.ini:ro
+      - ./postmark.conf:/app/postmark.conf:ro
+      - ./dmarc_reports:/app/dmarc_reports
+    restart: unless-stopped
+    network_mode: host

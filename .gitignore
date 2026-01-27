@@ -2,6 +2,7 @@
 credentials.json
 token.pickle
 *.pickle
+postmark.conf
 
 # Python cache
 __pycache__/
@@ -38,3 +39,4 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
