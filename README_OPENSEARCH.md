@@ -1,11 +1,11 @@
-# Elasticsearch/Kibana Setup for parsedmarc
+# OpenSearch/OpenSearch Dashboards Setup for parsedmarc
 
-This guide explains how to set up Elasticsearch and Kibana using Docker to visualize your parsedmarc DMARC reports.
+This guide explains how to set up OpenSearch and OpenSearch Dashboards using Docker to visualize your parsedmarc DMARC reports.
 
 ## Prerequisites
 
 - Docker and Docker Compose installed on your system
-- Python 3.6+ with `elasticsearch` package installed
+- Python 3.6+ with `opensearch-py` package installed
 - Existing parsedmarc JSON files in `dmarc_reports/` directory
 
 ## Installation
@@ -25,7 +25,7 @@ Or install directly:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install elasticsearch
+pip install opensearch-py
 ```
 
 **Note**: Always activate the virtual environment before running the import script:
@@ -33,7 +33,7 @@ pip install elasticsearch
 source venv/bin/activate
 ```
 
-### 2. Start Elasticsearch and Kibana
+### 2. Start OpenSearch and OpenSearch Dashboards
 
 Start the Docker containers:
 
@@ -42,8 +42,8 @@ docker-compose up -d
 ```
 
 This will start:
-- **Elasticsearch** on port 9200
-- **Kibana** on port 5601
+- **OpenSearch** on port 9200
+- **OpenSearch Dashboards** on port 5601
 
 Wait for the services to be healthy (about 1-2 minutes). You can check the status with:
 
@@ -51,7 +51,7 @@ Wait for the services to be healthy (about 1-2 minutes). You can check the statu
 docker-compose ps
 ```
 
-Verify Elasticsearch is running:
+Verify OpenSearch is running:
 
 ```bash
 curl http://localhost:9200
@@ -59,15 +59,15 @@ curl http://localhost:9200
 
 ### 3. Import Existing Data
 
-Make sure your virtual environment is activated, then import your existing parsedmarc JSON files into Elasticsearch:
+Make sure your virtual environment is activated, then import your existing parsedmarc JSON files into OpenSearch:
 
 ```bash
 source venv/bin/activate
-python3 import_to_elasticsearch.py
+python3 import_to_opensearch.py
 ```
 
 The script will:
-- Connect to Elasticsearch
+- Connect to OpenSearch
 - Create appropriate index mappings
 - Import aggregate reports from `dmarc_reports/aggregate.json`
 - Import forensic reports from `dmarc_reports/forensic.json`
@@ -75,14 +75,14 @@ The script will:
 You can customize the import with command-line options:
 
 ```bash
-python3 import_to_elasticsearch.py --host localhost --port 9200 \
+python3 import_to_opensearch.py --host localhost --port 9200 \
   --aggregate-file ./dmarc_reports/aggregate.json \
   --forensic-file ./dmarc_reports/forensic.json
 ```
 
-## Configuring Kibana
+## Configuring OpenSearch Dashboards
 
-### 1. Access Kibana
+### 1. Access OpenSearch Dashboards
 
 Open your web browser and navigate to:
 
@@ -92,7 +92,7 @@ http://localhost:5601
 
 ### 2. Create Index Patterns
 
-Kibana needs index patterns to visualize your data:
+OpenSearch Dashboards needs index patterns to visualize your data:
 
 1. Go to **Stack Management** → **Index Patterns** (or click "Create index pattern")
 2. Create index pattern for aggregate reports:
@@ -114,10 +114,10 @@ Navigate to **Discover** to explore your imported DMARC data. You can:
 
 ## Future Reports
 
-With the Elasticsearch configuration added to `parsedmarc.ini`, future parsedmarc runs will automatically send data to Elasticsearch:
+With the OpenSearch configuration added to `parsedmarc.ini`, future parsedmarc runs will automatically send data to OpenSearch:
 
 ```ini
-[elasticsearch]
+[opensearch]
 hosts = localhost:9200
 save_aggregate = True
 save_forensic = True
@@ -127,14 +127,14 @@ ssl_enabled = False
 
 When you run parsedmarc (e.g., `parsedmarc -c parsedmarc.ini`), it will:
 - Continue saving JSON/CSV files locally
-- Also send data directly to Elasticsearch
+- Also send data directly to OpenSearch
 - Create indices automatically with date-based naming
 
 ## Creating Dashboards
 
 ### Sample Visualizations
 
-Here are some useful visualizations you can create in Kibana:
+Here are some useful visualizations you can create in OpenSearch Dashboards:
 
 1. **Email Volume Over Time**
    - Visualization type: Line chart
@@ -170,12 +170,12 @@ Here are some useful visualizations you can create in Kibana:
 
 ## Troubleshooting
 
-### Elasticsearch Not Starting
+### OpenSearch Not Starting
 
-If Elasticsearch fails to start, check:
+If OpenSearch fails to start, check:
 
 ```bash
-docker-compose logs elasticsearch
+docker-compose logs opensearch
 ```
 
 Common issues:
@@ -190,7 +190,7 @@ Common issues:
 
 If the import script fails:
 
-1. Verify Elasticsearch is running:
+1. Verify OpenSearch is running:
    ```bash
    curl http://localhost:9200
    ```
@@ -202,18 +202,18 @@ If the import script fails:
    python3 -m json.tool dmarc_reports/aggregate.json > /dev/null
    ```
 
-### Kibana Can't Connect to Elasticsearch
+### OpenSearch Dashboards Can't Connect to OpenSearch
 
-If Kibana shows connection errors:
+If OpenSearch Dashboards shows connection errors:
 
-1. Check that Elasticsearch is healthy:
+1. Check that OpenSearch is healthy:
    ```bash
    docker-compose ps
    ```
 
 2. Verify network connectivity:
    ```bash
-   docker-compose exec kibana curl http://elasticsearch:9200
+   docker-compose exec opensearch-dashboards curl http://opensearch:9200
    ```
 
 3. Restart both services:
@@ -223,7 +223,7 @@ If Kibana shows connection errors:
 
 ## Stopping the Services
 
-To stop Elasticsearch and Kibana:
+To stop OpenSearch and OpenSearch Dashboards:
 
 ```bash
 docker-compose down
@@ -239,24 +239,24 @@ docker-compose down -v
 
 ## Data Persistence
 
-Data is persisted in Docker volumes. To backup your Elasticsearch data:
+Data is persisted in Docker volumes. To backup your OpenSearch data:
 
 ```bash
-docker run --rm -v parsedmarc_elasticsearch_data:/data -v $(pwd):/backup \
-  alpine tar czf /backup/elasticsearch-backup.tar.gz -C /data .
+docker run --rm -v parsedmarc_opensearch_data:/data -v $(pwd):/backup \
+  alpine tar czf /backup/opensearch-backup.tar.gz -C /data .
 ```
 
 To restore:
 
 ```bash
-docker run --rm -v parsedmarc_elasticsearch_data:/data -v $(pwd):/backup \
-  alpine tar xzf /backup/elasticsearch-backup.tar.gz -C /data
+docker run --rm -v parsedmarc_opensearch_data:/data -v $(pwd):/backup \
+  alpine tar xzf /backup/opensearch-backup.tar.gz -C /data
 ```
 
 ## Additional Resources
 
-- [Elasticsearch Documentation](https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html)
-- [Kibana Documentation](https://www.elastic.co/guide/en/kibana/current/index.html)
+- [OpenSearch Documentation](https://opensearch.org/docs/latest/)
+- [OpenSearch Dashboards Documentation](https://opensearch.org/docs/latest/dashboards/index/)
 - [parsedmarc Documentation](https://domainaware.github.io/parsedmarc/)
 
 ## Index Structure

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Import parsedmarc JSON files into Elasticsearch.
+Import parsedmarc JSON files into OpenSearch.
 
 This script reads aggregate.json and forensic.json files from the dmarc_reports
-directory and imports them into Elasticsearch for visualization in Kibana.
+directory and imports them into OpenSearch for visualization in OpenSearch Dashboards.
 """
 
 import json
@@ -11,15 +11,15 @@ import os
 import sys
 from datetime import datetime
 from typing import List, Dict, Any
-from elasticsearch import Elasticsearch
-from elasticsearch.helpers import bulk
-from elasticsearch.helpers.errors import BulkIndexError
+from opensearchpy import OpenSearch
+from opensearchpy.helpers import bulk
+from opensearchpy.helpers.errors import BulkIndexError
 
 
-def create_elasticsearch_client(host: str = "localhost", port: int = 9200) -> Elasticsearch:
-    """Create and return an Elasticsearch client."""
+def create_opensearch_client(host: str = "localhost", port: int = 9200) -> OpenSearch:
+    """Create and return an OpenSearch client."""
     url = f"http://{host}:{port}"
-    return Elasticsearch(
+    return OpenSearch(
         [url],
         request_timeout=30,
         max_retries=3,
@@ -29,19 +29,19 @@ def create_elasticsearch_client(host: str = "localhost", port: int = 9200) -> El
     )
 
 
-def check_elasticsearch_connection(es: Elasticsearch) -> bool:
-    """Check if Elasticsearch is accessible."""
+def check_opensearch_connection(es: OpenSearch) -> bool:
+    """Check if OpenSearch is accessible."""
     try:
         # Use info() instead of ping() as it's more reliable
         info = es.info()
-        print(f"✓ Connected to Elasticsearch (cluster: {info['cluster_name']}, version: {info['version']['number']})")
+        print(f"✓ Connected to OpenSearch (cluster: {info['cluster_name']}, version: {info['version']['number']})")
         return True
     except Exception as e:
-        print(f"✗ Error connecting to Elasticsearch: {e}")
+        print(f"✗ Error connecting to OpenSearch: {e}")
         return False
 
 
-def create_index_mapping(es: Elasticsearch, index_name: str, doc_type: str):
+def create_index_mapping(es: OpenSearch, index_name: str, doc_type: str):
     """Create index with proper mapping for parsedmarc data."""
     if es.indices.exists(index=index_name):
         print(f"  Index {index_name} already exists, skipping mapping creation")
@@ -95,7 +95,7 @@ def create_index_mapping(es: Elasticsearch, index_name: str, doc_type: str):
 
 
 def normalize_date(date_str: str) -> str:
-    """Convert date string to ISO 8601 format for Elasticsearch."""
+    """Convert date string to ISO 8601 format for OpenSearch."""
     if not date_str:
         return datetime.now().isoformat()
     try:
@@ -113,7 +113,7 @@ def normalize_date(date_str: str) -> str:
 
 
 def transform_aggregate_record(report: Dict[str, Any], record: Dict[str, Any]) -> Dict[str, Any]:
-    """Transform an aggregate report record into an Elasticsearch document."""
+    """Transform an aggregate report record into an OpenSearch document."""
     # Extract report metadata
     metadata = report.get("report_metadata", {})
     policy = report.get("policy_published", {})
@@ -164,7 +164,7 @@ def transform_aggregate_record(report: Dict[str, Any], record: Dict[str, Any]) -
 
 
 def transform_forensic_record(report: Dict[str, Any]) -> Dict[str, Any]:
-    """Transform a forensic report into an Elasticsearch document."""
+    """Transform a forensic report into an OpenSearch document."""
     metadata = report.get("report_metadata", {})
     policy = report.get("policy_published", {})
     
@@ -265,7 +265,7 @@ def load_json_file(json_file: str) -> List[Dict[str, Any]]:
     return all_reports
 
 
-def import_aggregate_reports(es: Elasticsearch, json_file: str, index_prefix: str = "dmarc-aggregate"):
+def import_aggregate_reports(es: OpenSearch, json_file: str, index_prefix: str = "dmarc-aggregate"):
     """Import aggregate reports from JSON file."""
     if not os.path.exists(json_file):
         print(f"  File {json_file} not found, skipping")
@@ -340,7 +340,7 @@ def import_aggregate_reports(es: Elasticsearch, json_file: str, index_prefix: st
         return 0
 
 
-def import_forensic_reports(es: Elasticsearch, json_file: str, index_prefix: str = "dmarc-forensic"):
+def import_forensic_reports(es: OpenSearch, json_file: str, index_prefix: str = "dmarc-forensic"):
     """Import forensic reports from JSON file."""
     if not os.path.exists(json_file):
         print(f"  File {json_file} not found, skipping")
@@ -417,17 +417,17 @@ def main():
     """Main function."""
     import argparse
     
-    parser = argparse.ArgumentParser(description="Import parsedmarc JSON files into Elasticsearch")
+    parser = argparse.ArgumentParser(description="Import parsedmarc JSON files into OpenSearch")
     parser.add_argument(
         "--host",
         default="localhost",
-        help="Elasticsearch host (default: localhost)"
+        help="OpenSearch host (default: localhost)"
     )
     parser.add_argument(
         "--port",
         type=int,
         default=9200,
-        help="Elasticsearch port (default: 9200)"
+        help="OpenSearch port (default: 9200)"
     )
     parser.add_argument(
         "--aggregate-file",
@@ -442,15 +442,15 @@ def main():
     
     args = parser.parse_args()
     
-    print("parsedmarc Elasticsearch Import Tool")
+    print("parsedmarc OpenSearch Import Tool")
     print("=" * 50)
     
-    # Create Elasticsearch client
-    es = create_elasticsearch_client(args.host, args.port)
+    # Create OpenSearch client
+    es = create_opensearch_client(args.host, args.port)
     
     # Check connection
-    if not check_elasticsearch_connection(es):
-        print("\nMake sure Elasticsearch is running:")
+    if not check_opensearch_connection(es):
+        print("\nMake sure OpenSearch is running:")
         print("  docker-compose up -d")
         sys.exit(1)
     
@@ -466,7 +466,7 @@ def main():
     print(f"  Aggregate records: {aggregate_count}")
     print(f"  Forensic reports: {forensic_count}")
     print(f"  Total: {aggregate_count + forensic_count}")
-    print("\nAccess Kibana at: http://localhost:5601")
+    print("\nAccess OpenSearch Dashboards at: http://localhost:5601")
 
 
 if __name__ == "__main__":
