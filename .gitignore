@@ -3,6 +3,7 @@ credentials.json
 token.pickle
 *.pickle
 postmark.conf
+parsedmarc.ini
 
 # Python cache
 __pycache__/
