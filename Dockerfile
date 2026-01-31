@@ -16,11 +16,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY process_and_import.py .
+COPY classify_dmarc_failures.py .
 COPY wrapper.sh .
 COPY docker-entrypoint.sh .
 
 # Make scripts executable
-RUN chmod +x wrapper.sh docker-entrypoint.sh
+RUN chmod +x wrapper.sh docker-entrypoint.sh classify_dmarc_failures.py
 
 # Create logs directory
 RUN mkdir -p /logs && chmod 777 /logs

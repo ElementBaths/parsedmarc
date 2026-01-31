@@ -1,6 +1,6 @@
 # Docker Setup for ParseDmarc
 
-This project runs inside a Docker container with hourly cron execution, automatic failure notifications via Postmark, centralized logging, and OpenSearch integration for DMARC report visualization.
+This project runs inside a Docker container with hourly cron execution, automatic failure notifications via Postmark, centralized logging, OpenSearch integration for DMARC report visualization, and AI-powered classification of DMARC failures using Claude.
 
 ## Prerequisites
 
@@ -8,6 +8,7 @@ This project runs inside a Docker container with hourly cron execution, automati
 - Postmark API token (for failure notifications)
 - Gmail API credentials (`credentials.json` and `token.pickle`)
 - OpenSearch instance accessible from the container
+- Anthropic API key (optional, for AI classification of DMARC failures)
 
 ## Setup
 
@@ -48,7 +49,69 @@ ssl = True
 index_prefix = dmarc
 ```
 
-### 3. Create Logs Directory
+### 3. Configure AI Classification (Optional)
+
+The system can automatically classify DMARC failures using Claude AI. After each parsedmarc import, failures are analyzed and tagged with:
+
+- **Status**: `OK`, `ATTENTION`, or `CRITICAL`
+- **Classification**: `LEGITIMATE_SERVICE`, `FORWARDING`, `SPOOFING`, `INTERNAL_CONFIG`, or `UNKNOWN`
+- **Failure details**: Specific explanations for SPF/DKIM/alignment failures
+- **Recommended action**: Actionable next steps
+
+#### Getting an Anthropic API Key
+
+1. Create an account at [console.anthropic.com](https://console.anthropic.com/)
+2. Navigate to **API Keys** in the dashboard
+3. Click **Create Key** and give it a descriptive name
+4. Copy the key (starts with `sk-ant-`)
+
+**Pricing**: Claude API usage is pay-per-token. The `claude-sonnet-4-20250514` model costs approximately $3 per million input tokens and $15 per million output tokens. For typical DMARC classification (a few hundred failures per day), expect costs under $1/month.
+
+#### Setting the API Key
+
+Create a `.env` file in the project directory:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-your-api-key-here
+```
+
+Then update `docker-compose.yml` to load the environment variable:
+
+```yaml
+services:
+  parsedmarc-processor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: parsedmarc-processor
+    env_file:
+      - .env
+    volumes:
+      # ... existing volumes
+```
+
+Alternatively, set it directly in `docker-compose.yml`:
+
+```yaml
+services:
+  parsedmarc-processor:
+    environment:
+      - ANTHROPIC_API_KEY=sk-ant-your-api-key-here
+```
+
+**Note**: If `ANTHROPIC_API_KEY` is not set, the AI classification step is skipped silently. The parsedmarc import will still run normally.
+
+#### OpenSearch Environment Variables
+
+The classification script uses these environment variables (with defaults):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OPENSEARCH_HOST` | `localhost` | OpenSearch hostname |
+| `OPENSEARCH_PORT` | `9200` | OpenSearch port |
+| `OPENSEARCH_INDEX_PREFIX` | `dmarc_aggregate` | Index prefix for DMARC data |
+
+### 4. Create Logs Directory
 
 The logs directory will be created automatically, but you can create it manually:
 
@@ -56,7 +119,7 @@ The logs directory will be created automatically, but you can create it manually
 mkdir -p logs
 ```
 
-### 4. Build and Start
+### 5. Build and Start
 
 Build the Docker image:
 
@@ -122,7 +185,17 @@ Jan 27 14:00:15 parsedmarc-processor wrapper.sh[1234]: [info] Pipeline completed
 Jan 27 14:00:15 parsedmarc-processor wrapper.sh[1234]: [info] ✓ DMARC reports processed from Gmail
 Jan 27 14:00:15 parsedmarc-processor wrapper.sh[1234]: [info] ✓ Reports imported into OpenSearch
 Jan 27 14:00:15 parsedmarc-processor wrapper.sh[1234]: [info] ========== END SUMMARY ==========
-Jan 27 14:00:15 parsedmarc-processor wrapper.sh[1234]: [info] Process completed at 2026-01-27 14:00:15 UTC
+Jan 27 14:00:15 parsedmarc-processor wrapper.sh[1234]: [info] Starting AI classification of DMARC failures
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info] AI classification completed successfully
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info] ========== CLASSIFICATION SUMMARY ==========
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info] Classification complete
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info]   Processed: 5
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info]   OK: 3
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info]   Attention: 2
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info]   Critical: 0
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info]   Errors: 0
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info] ========== END CLASSIFICATION ==========
+Jan 27 14:00:25 parsedmarc-processor wrapper.sh[1234]: [info] Process completed at 2026-01-27 14:00:25 UTC
 ```
 
 ### Failure Example (with full output and stack trace)
@@ -188,21 +261,54 @@ docker-compose exec parsedmarc-processor ps aux | grep cron
 
 3. For SSL issues, ensure `ssl = False` for HTTP or `ssl = True` for HTTPS
 
+### AI classification not running
+
+1. Verify `ANTHROPIC_API_KEY` is set:
+   ```bash
+   docker-compose exec parsedmarc-processor printenv ANTHROPIC_API_KEY
+   ```
+
+2. Check that the API key is valid at [console.anthropic.com](https://console.anthropic.com/)
+
+3. If you see "ANTHROPIC_API_KEY not set - skipping AI classification" in logs, ensure the `.env` file exists and `docker-compose.yml` includes `env_file: - .env`
+
+4. Check for rate limiting errors in the logs - Anthropic has per-minute request limits
+
+### AI classification errors
+
+1. Check the classification output in logs for specific errors:
+   ```bash
+   grep -i "classify" logs/app.log | tail -20
+   ```
+
+2. Run the classification script manually for debugging:
+   ```bash
+   docker-compose exec parsedmarc-processor python3 /app/classify_dmarc_failures.py
+   ```
+
+3. Verify OpenSearch connectivity from the classification script:
+   ```bash
+   docker-compose exec parsedmarc-processor python3 -c "from opensearchpy import OpenSearch; c = OpenSearch([{'host': 'localhost', 'port': 9200}]); print(c.info())"
+   ```
+
 ## File Structure
 
 ```
 .
-├── Dockerfile                 # Container definition
-├── docker-compose.yml         # Service orchestration
-├── docker-entrypoint.sh      # Container startup script
-├── wrapper.sh                # Main wrapper script with monitoring
-├── crontab                   # Cron schedule configuration
-├── postmark.conf.example     # Postmark config template
-├── postmark.conf             # Postmark config (not in git)
-├── parsedmarc.ini            # parsedmarc configuration (includes OpenSearch settings)
-├── logs/                     # Log directory (mounted volume)
-│   └── app.log              # Application logs
-└── dmarc_reports/           # Parsed DMARC reports (mounted volume)
+├── Dockerfile                     # Container definition
+├── docker-compose.yml             # Service orchestration
+├── docker-entrypoint.sh           # Container startup script
+├── wrapper.sh                     # Main wrapper script with monitoring
+├── crontab                        # Cron schedule configuration
+├── process_and_import.py          # DMARC report processing script
+├── classify_dmarc_failures.py     # AI classification script
+├── postmark.conf.example          # Postmark config template
+├── postmark.conf                  # Postmark config (not in git)
+├── parsedmarc.ini                 # parsedmarc configuration
+├── .env                           # Environment variables including ANTHROPIC_API_KEY (not in git)
+├── logs/                          # Log directory (mounted volume)
+│   └── app.log                    # Application logs
+└── dmarc_reports/                 # Parsed DMARC reports (mounted volume)
 ```
 
 ## Stopping Services

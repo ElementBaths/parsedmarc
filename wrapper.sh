@@ -92,6 +92,30 @@ main() {
         done < <(tail -n 10 /tmp/process_output.log)
         log_message "info" "========== END SUMMARY =========="
         
+        # Run AI classification on DMARC failures
+        log_message "info" "Starting AI classification of DMARC failures"
+        set +e
+        python3 /app/classify_dmarc_failures.py \
+            > /tmp/classify_output.log 2>&1
+        classify_exit_code=$?
+        set -e
+        
+        if [ $classify_exit_code -eq 0 ]; then
+            log_message "info" "AI classification completed successfully"
+            # Log classification summary
+            log_message "info" "========== CLASSIFICATION SUMMARY =========="
+            while IFS= read -r line; do
+                log_message "info" "$line"
+            done < <(tail -n 10 /tmp/classify_output.log)
+            log_message "info" "========== END CLASSIFICATION =========="
+        else
+            log_message "warning" "AI classification failed with exit code: $classify_exit_code"
+            # Log error output but don't fail the whole process
+            while IFS= read -r line; do
+                log_message "warning" "$line"
+            done < <(tail -n 20 /tmp/classify_output.log)
+        fi
+        
         log_message "info" "Process completed at $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
         exit 0
     else

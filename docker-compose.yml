@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: parsedmarc-processor
+    env_file:
+      - .env  
     volumes:
       - ./logs:/logs
       - ./credentials.json:/app/credentials.json:ro
