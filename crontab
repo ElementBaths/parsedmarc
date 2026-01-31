@@ -1,4 +1,5 @@
 # ParseDmarc hourly cron job
 # Runs wrapper.sh every hour at minute 0
+PATH=/usr/local/bin:/usr/bin:/bin
 0 * * * * root /app/wrapper.sh >> /dev/null 2>&1
 

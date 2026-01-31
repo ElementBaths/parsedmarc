@@ -73,7 +73,7 @@ main() {
     # Execute process_and_import.py
     # Capture exit code but don't fail wrapper script if Python script fails
     set +e
-    python3 /app/process_and_import.py \
+    /usr/local/bin/python3 /app/process_and_import.py \
         > /tmp/process_output.log 2>&1
     exit_code=$?
     set -e
@@ -95,7 +95,7 @@ main() {
         # Run AI classification on DMARC failures
         log_message "info" "Starting AI classification of DMARC failures"
         set +e
-        python3 /app/classify_dmarc_failures.py \
+        /usr/local/bin/python3 /app/classify_dmarc_failures.py \
             > /tmp/classify_output.log 2>&1
         classify_exit_code=$?
         set -e
