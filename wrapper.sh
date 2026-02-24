@@ -70,10 +70,13 @@ send_failure_email() {
 main() {
     log_message "info" "Process started at $TIMESTAMP"
     
-    # Execute process_and_import.py
+    # Ensure we're in /app so relative paths work (cron runs with CWD=/)
+    cd /app
+    
+    # Execute process_and_import.py with absolute config path
     # Capture exit code but don't fail wrapper script if Python script fails
     set +e
-    /usr/local/bin/python3 /app/process_and_import.py \
+    /usr/local/bin/python3 /app/process_and_import.py --config /app/parsedmarc.ini \
         > /tmp/process_output.log 2>&1
     exit_code=$?
     set -e
